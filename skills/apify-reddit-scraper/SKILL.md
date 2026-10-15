@@ -151,7 +151,7 @@ Every row carries `dataType` (`post` | `comment` | `community` | `user_profile`)
 | `community` | `name`, `title`, `publicDescription`, `nsfw`, `rules` |
 | `user_profile` | `username`, `totalKarma`, `bio`, `followersCount`, `createdAt` |
 
-Since 2026-10-13 the Actor reads Reddit's HTML pages, because Reddit closed its logged-out `.json` endpoints. Field names did not change, but Reddit does not show some values to logged-out visitors, so these fields are always `null`: `membersCount`, `onlineUsersCount` and `description` on `community` rows, `subredditSubscribers` on `post` rows, and `awardeeKarma` and `awarderKarma` on user rows. Do not rank or filter communities by size from this data.
+Some fields can be `null`. `onlineUsersCount` on `community` rows is always `null`. `membersCount`, `description` and `subredditSubscribers` can be `null` on some rows, so check for `null` before you rank or filter communities by size.
 
 Report back: what was searched (exact input), item count by `dataType`, whether a limit or date window truncated the run, a handful of representative rows with `postUrl` links, and the next parameter change if the set was too broad or too thin. Group by `communityName` when several communities were used (grouping by term needs the arithmetic above, since `searchTerm` is not on the rows). Never assert sentiment from titles alone; quote the `body`. If the user wants sentiment labels on every row, that is `aiAnalysis: true` — a separate `analyzed_item` charge of $0.0005 per row on top of the result price (it was billed on a free-plan account in a measured run, despite the schema saying it is ignored there), so include it in the estimate and say so; otherwise read the `body` yourself.
 
@@ -191,7 +191,7 @@ See <https://github.com/apify/mcpc>.
 - **Bad date** (`postedAfter` later than `postedBefore`, or not `YYYY-MM-DD`) → the run does not fail. The Actor drops the date filter, notes it in `inputWarnings` of the `RUN-SUMMARY` record in the run's key-value store, and scrapes the full range — more items and more cost than the window implied. Check `inputWarnings` before trusting a date-bounded result.
 - **No target** (none of `searchTerms`, `startUrls`, `subredditUrls` was set — a common cause is using an invented field like `query` or `keywords`) → the run finishes SUCCEEDED with 0 items and `emptyReason` set in `RUN-SUMMARY`; nothing is charged. Fix the field names and re-run.
 - **`/s/` share links** (`reddit.com/r/x/s/abc`) → put them in `startUrls` as they are. The Actor resolves each one to its post or profile. An expired link resolves to the subreddit listing, not the post.
-- **`membersCount`, `onlineUsersCount` or `subredditSubscribers` is `null`** → expected. Reddit does not show these values to logged-out visitors. Nothing to retry.
+- **`onlineUsersCount` is `null`** → expected on every row. **`membersCount` or `subredditSubscribers` is `null`** → Reddit did not return the value for that row. A later run can return it; do not retry only for these fields.
 - **Private, banned or quarantined subreddit** → terminal skip, noted in the run summary; nothing to retry.
 - **Cost higher than expected** → `crawlCommentsPerPost` was on. Re-run with it off, or lower `maxCommentsPerPost`.
 - For cost tables and recovery flows, see [references/gotchas.md](references/gotchas.md); for the full field mapping, [references/input-mapping.md](references/input-mapping.md).
